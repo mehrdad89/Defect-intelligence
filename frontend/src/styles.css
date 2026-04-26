@@ -394,19 +394,19 @@ code {
   font-size: 0.78rem;
 }
 
-.ai-panel {
+.insight-panel {
   background:
     linear-gradient(145deg, rgba(255, 248, 236, 0.9), rgba(238, 247, 245, 0.92)),
     var(--panel);
 }
 
-.ai-narrative {
+.insight-narrative {
   margin: 0 0 1rem;
   font-size: 1.05rem;
   line-height: 1.7;
 }
 
-.ai-grid {
+.insight-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
@@ -466,7 +466,7 @@ code {
   }
 
   .control-row,
-  .ai-grid {
+  .insight-grid {
     grid-template-columns: 1fr;
   }
 

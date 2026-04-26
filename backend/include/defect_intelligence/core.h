@@ -88,9 +88,9 @@ struct ScanSummary {
     double coverage_ratio {0.0};
 };
 
-struct AiSummary {
+struct InsightSummary {
     bool available {false};
-    std::string provider;
+    std::string source;
     std::string narrative;
     std::vector<std::string> highlights;
     std::vector<std::string> next_actions;
@@ -106,7 +106,7 @@ struct ScanReport {
     std::vector<AuthorMetric> authors;
     std::vector<TrendBucket> timeline;
     std::vector<CommitSummary> commits;
-    AiSummary ai_summary;
+    InsightSummary insight_summary;
 };
 
 std::vector<std::string> extract_defect_ids(std::string_view text);
@@ -123,9 +123,9 @@ class GitRepositoryScanner {
     [[nodiscard]] ScanReport scan(const ScanConfig& config) const;
 };
 
-class AiSummarizer {
+class InsightComposer {
   public:
-    [[nodiscard]] AiSummary summarize(
+    [[nodiscard]] InsightSummary compose(
         const ScanReport& report,
         const std::optional<std::string>& focus_component = std::nullopt) const;
 };
@@ -142,9 +142,8 @@ std::string authors_to_json(const ScanReport& report);
 std::string commits_to_json(
     const ScanReport& report,
     const std::optional<std::string>& component_filter = std::nullopt);
-std::string ai_summary_to_json(const AiSummary& summary);
+std::string insight_summary_to_json(const InsightSummary& summary);
 std::string health_to_json();
 std::string error_to_json(std::string_view message, int code);
 
 }  // namespace di
-

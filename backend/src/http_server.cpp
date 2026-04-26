@@ -294,9 +294,9 @@ void ApiServer::serve() {
                             response = json_response(200, authors_to_json(report));
                         } else if (request.path == "/api/v1/commits") {
                             response = json_response(200, commits_to_json(report, query_value(request.query, "component")));
-                        } else if (request.path == "/api/v1/ai-summary") {
-                            const AiSummary summary = AiSummarizer {}.summarize(report, query_value(request.query, "component"));
-                            response = json_response(200, ai_summary_to_json(summary));
+                        } else if (request.path == "/api/v1/insights") {
+                            const InsightSummary summary = InsightComposer {}.compose(report, query_value(request.query, "component"));
+                            response = json_response(200, insight_summary_to_json(summary));
                         } else {
                             response = json_response(404, error_to_json("Unknown endpoint.", 404));
                         }
@@ -314,4 +314,3 @@ void ApiServer::serve() {
 }
 
 }  // namespace di
-

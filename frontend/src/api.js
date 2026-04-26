@@ -1,17 +1,25 @@
-import { demoReport } from "./demoData";
-import type { Report } from "./types";
+import { demoReport } from "./demo-data.js";
 
-export interface ReportRequest {
-  repoPath?: string;
-  revision?: string;
-  historyMode?: "full" | "first-parent";
-  maxCommits?: number;
-  sample?: boolean;
+function readApiBaseUrl() {
+  const configuredMeta = document
+    .querySelector('meta[name="defect-intelligence-api-base-url"]')
+    ?.getAttribute("content")
+    ?.trim();
+
+  if (configuredMeta) {
+    return configuredMeta;
+  }
+
+  if (window.DEFECT_INTELLIGENCE_API_BASE_URL) {
+    return window.DEFECT_INTELLIGENCE_API_BASE_URL;
+  }
+
+  return "http://localhost:8080";
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
+export const API_BASE_URL = readApiBaseUrl();
 
-function buildParams(request: ReportRequest): URLSearchParams {
+function buildParams(request) {
   const params = new URLSearchParams();
   if (request.repoPath) {
     params.set("repoPath", request.repoPath);
@@ -31,7 +39,7 @@ function buildParams(request: ReportRequest): URLSearchParams {
   return params;
 }
 
-export async function fetchReport(request: ReportRequest): Promise<Report> {
+export async function fetchReport(request) {
   const params = buildParams(request);
   const suffix = params.toString();
   const response = await fetch(
@@ -48,16 +56,14 @@ export async function fetchReport(request: ReportRequest): Promise<Report> {
     throw new Error(message || `Failed to load report: ${response.status}`);
   }
 
-  return (await response.json()) as Report;
+  return response.json();
 }
 
-export async function loadReportWithFallback(request: ReportRequest): Promise<Report> {
+export async function loadReportWithFallback(request) {
   try {
     return await fetchReport(request);
   } catch {
     return demoReport;
   }
 }
-
-export { API_BASE_URL };
 

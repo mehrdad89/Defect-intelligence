@@ -5,8 +5,8 @@ LDFLAGS ?=
 BUILD_DIR := build
 TARGET := $(BUILD_DIR)/defect-intelligence
 TEST_TARGET := $(BUILD_DIR)/test_defect_intelligence
-APP_SOURCES := src/main.cpp src/core.cpp src/http_server.cpp
-TEST_SOURCES := tests/test_core.cpp src/core.cpp src/http_server.cpp
+APP_SOURCES := src/main.cpp src/internal_utils.cpp src/defect_parsing.cpp src/sample_report.cpp src/git_scanner.cpp src/insight_summary.cpp src/json_serialization.cpp src/http_server.cpp
+TEST_SOURCES := tests/test_core.cpp src/internal_utils.cpp src/defect_parsing.cpp src/sample_report.cpp src/git_scanner.cpp src/insight_summary.cpp src/json_serialization.cpp src/http_server.cpp
 
 .PHONY: all test clean run-sample serve-sample
 
@@ -31,4 +31,3 @@ serve-sample: $(TARGET)
 
 clean:
 	rm -rf $(BUILD_DIR)
-

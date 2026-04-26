@@ -7,7 +7,7 @@ The project is intentionally vendor-neutral and keeps repository-specific assump
 ## What Is Included
 
 - `backend/`: modern C++20 service with a batched Git scan pipeline, aggregation layer, optional narrative summary generation, and HTTP API
-- `frontend/`: React + TypeScript dashboard for executive summaries, component hotspots, author activity, and recent defect-linked commits
+- `frontend/`: no-build React dashboard loaded from CDN for executive summaries, component hotspots, author activity, and recent defect-linked commits
 - `docs/`: architecture notes and a repository checklist
 
 ## Product Shape
@@ -24,7 +24,7 @@ The implementation stays intentionally pragmatic:
 
 - no repo-specific assumptions are hard-coded
 - sample mode is available when you do not want to point at a real repository yet
-- summary generation works locally by default and can be extended to external model providers later
+- summary generation works locally by default and can be extended to external providers later
 
 ## Backend Quick Start
 
@@ -53,7 +53,7 @@ Available API routes:
 - `GET /api/v1/components`
 - `GET /api/v1/authors`
 - `GET /api/v1/commits`
-- `GET /api/v1/ai-summary`
+- `GET /api/v1/insights`
 
 Useful query parameters:
 
@@ -68,21 +68,20 @@ Useful query parameters:
 
 ## Frontend Quick Start
 
-The frontend is a standard React + Vite app.
+The frontend is a static React app that loads React from a CDN and runs directly in the browser.
 
 ```bash
 cd frontend
-npm install
-npm run dev
+python3 -m http.server 4173
 ```
 
-Set the API base URL with:
+Open `http://localhost:4173`.
 
-```bash
-VITE_API_BASE_URL=http://localhost:8080
-```
+Set the API base URL by editing the `<meta name="defect-intelligence-api-base-url">` tag in [frontend/index.html](/Users/mehrdad.mehraban/repo/Defect-intelligence/frontend/index.html:1), or set `window.DEFECT_INTELLIGENCE_API_BASE_URL` before `main.js` loads.
 
 If the API is unavailable, the UI falls back to sample data so the experience is still reviewable.
+
+For the exact two-terminal startup flow, see [RUNBOOK.md](/Users/mehrdad.mehraban/repo/Defect-intelligence/RUNBOOK.md:1).
 
 ## Repository Notes
 
@@ -98,5 +97,5 @@ See [docs/publishability.md](/Users/mehrdad.mehraban/repo/Defect-intelligence/do
 - add persistent scan caching in SQLite or Postgres
 - enrich issue references from GitHub, Jira, or Azure DevOps
 - schedule background scans for large repositories
-- connect the summary hook to an external model provider behind a feature flag
+- connect the summary hook to an external provider behind a feature flag
 - add team and release lineage overlays for quality analytics

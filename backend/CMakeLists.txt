@@ -7,7 +7,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_executable(defect-intelligence
   src/main.cpp
-  src/core.cpp
+  src/internal_utils.cpp
+  src/defect_parsing.cpp
+  src/sample_report.cpp
+  src/git_scanner.cpp
+  src/insight_summary.cpp
+  src/json_serialization.cpp
   src/http_server.cpp
 )
 
@@ -16,10 +21,14 @@ target_compile_options(defect-intelligence PRIVATE -Wall -Wextra -Wpedantic)
 
 add_executable(test_defect_intelligence
   tests/test_core.cpp
-  src/core.cpp
+  src/internal_utils.cpp
+  src/defect_parsing.cpp
+  src/sample_report.cpp
+  src/git_scanner.cpp
+  src/insight_summary.cpp
+  src/json_serialization.cpp
   src/http_server.cpp
 )
 
 target_include_directories(test_defect_intelligence PRIVATE include)
 target_compile_options(test_defect_intelligence PRIVATE -Wall -Wextra -Wpedantic)
-

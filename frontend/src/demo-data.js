@@ -1,6 +1,4 @@
-import type { Report } from "./types";
-
-export const demoReport: Report = {
+export const demoReport = {
   metadata: {
     generatedAt: "2026-04-25T16:40:00Z",
     repository: "sample-data",
@@ -75,8 +73,8 @@ export const demoReport: Report = {
       hotspotScore: 22.49,
       topAuthors: ["L. Brown", "J. Kim"],
       topFiles: [
-        "frontend/src/App.tsx",
-        "frontend/src/components/HotspotTable.tsx",
+        "frontend/src/app.js",
+        "frontend/src/demo-data.js",
       ],
     },
   ],
@@ -192,7 +190,7 @@ export const demoReport: Report = {
       totalChurn: 55,
       files: [
         {
-          path: "frontend/src/App.tsx",
+          path: "frontend/src/app.js",
           component: "frontend/dashboard",
           fileKind: "code",
           added: 33,
@@ -210,9 +208,9 @@ export const demoReport: Report = {
       ],
     },
   ],
-  aiSummary: {
+  insightSummary: {
     available: true,
-    provider: "built-in",
+    source: "built-in",
     narrative:
       "The strongest concentration of defect-linked activity is in src/scanner, where eight unique customer markers appear across twelve commits. The pattern looks like repeated stabilization work rather than a one-off incident.",
     highlights: [
@@ -227,3 +225,4 @@ export const demoReport: Report = {
     ],
   },
 };
+

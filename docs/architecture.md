@@ -47,7 +47,7 @@ The HTTP service exposes the aggregate report through JSON endpoints that the Re
 - `ComponentMetric`
 - `AuthorMetric`
 - `TrendBucket`
-- `AiSummary`
+- `InsightSummary`
 - `ScanReport`
 
 ### Key metric ideas
@@ -64,7 +64,7 @@ The HTTP service exposes the aggregate report through JSON endpoints that the Re
 - `GET /api/v1/components`: component hotspot rollup
 - `GET /api/v1/authors`: author rollup
 - `GET /api/v1/commits`: recent commit list, optionally filtered by component
-- `GET /api/v1/ai-summary`: optional narrative summary, optionally focused on one component
+- `GET /api/v1/insights`: optional narrative summary, optionally focused on one component
 
 ## Frontend Shape
 
@@ -76,7 +76,7 @@ The dashboard is intentionally small and review-friendly:
 - recent commit feed
 - insight panel
 
-The UI defaults to demo data when the backend is not reachable so the repo remains easy to review on GitHub.
+The UI is delivered as static browser modules and loads React from a CDN. It defaults to demo data when the backend is not reachable so the repo remains easy to review on GitHub.
 
 ## Extension Points
 
@@ -84,4 +84,4 @@ The UI defaults to demo data when the backend is not reachable so the repo remai
 - persistent cache for large repositories
 - repo connector adapters beyond local Git
 - richer defect taxonomies and customer tags
-- external model provider integration behind feature flags
+- external provider integration behind feature flags

@@ -29,14 +29,14 @@ int main() {
     require(issue_refs[1] == 77, "expected issue 77");
 
     require(di::classify_file_kind("src/api/server.cpp") == "code", "expected code classification");
-    require(di::classify_file_kind("frontend/src/App.tsx") == "code", "expected tsx code classification");
+    require(di::classify_file_kind("frontend/src/app.js") == "code", "expected js code classification");
     require(di::classify_file_kind("docs/readme.md") == "doc", "expected doc classification");
     require(di::infer_component("src/api/server.cpp") == "src/api", "expected inferred src/api component");
     require(di::infer_component("scripts/reindex.sh") == "scripts", "expected top-level scripts component");
 
     const auto sample = di::build_sample_report();
     require(sample.summary.relevant_commits > 0, "sample report should contain relevant commits");
-    require(!sample.ai_summary.narrative.empty(), "sample report should include a summary narrative");
+    require(!sample.insight_summary.narrative.empty(), "sample report should include a summary narrative");
 
     std::cout << "All backend tests passed.\n";
     return EXIT_SUCCESS;
