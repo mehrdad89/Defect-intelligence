@@ -119,6 +119,15 @@ bool has_any_signal(const CommitSummary& commit) {
     return !commit.defect_ids.empty() || !commit.issue_refs.empty();
 }
 
+std::vector<std::string> normalized_signal_ids(const CommitSummary& commit) {
+    std::vector<std::string> ids = commit.defect_ids;
+    ids.reserve(commit.defect_ids.size() + commit.issue_refs.size());
+    for (int issue_ref : commit.issue_refs) {
+        ids.push_back("ISSUE-" + std::to_string(issue_ref));
+    }
+    return ids;
+}
+
 CommitSummary build_commit_summary(const std::string& repo_path, const BasicCommit& basic_commit) {
     CommitSummary commit;
     commit.hash = basic_commit.hash;
@@ -256,6 +265,7 @@ ScanReport GitRepositoryScanner::scan(const ScanConfig& config) const {
 
     for (const auto& commit : relevant_commits) {
         const std::string day = internal::date_only(commit.authored_at);
+        const std::vector<std::string> signal_ids = normalized_signal_ids(commit);
         if (period_start.empty() || day < period_start) {
             period_start = day;
         }
@@ -266,14 +276,14 @@ ScanReport GitRepositoryScanner::scan(const ScanConfig& config) const {
         TrendBucket& bucket = timeline_map[day];
         bucket.date = day;
         bucket.commits += 1;
-        bucket.defect_refs += static_cast<int>(commit.defect_ids.size());
+        bucket.defect_refs += static_cast<int>(signal_ids.size());
 
         AuthorAccumulator& author_accumulator = author_map[commit.author];
         author_accumulator.commits += 1;
         author_accumulator.total_churn += commit.total_churn;
-        for (const auto& defect_id : commit.defect_ids) {
-            unique_defects.insert(defect_id);
-            author_accumulator.defect_ids.insert(defect_id);
+        for (const auto& signal_id : signal_ids) {
+            unique_defects.insert(signal_id);
+            author_accumulator.defect_ids.insert(signal_id);
         }
         for (const auto& component_name : commit.components) {
             author_accumulator.components.insert(component_name);
@@ -287,8 +297,8 @@ ScanReport GitRepositoryScanner::scan(const ScanConfig& config) const {
             component_accumulator.author_counts[commit.author] += 1;
             component_accumulator.total_churn += commit.total_churn;
             component_accumulator.active_days.insert(day);
-            for (const auto& defect_id : commit.defect_ids) {
-                component_accumulator.defect_ids.insert(defect_id);
+            for (const auto& signal_id : signal_ids) {
+                component_accumulator.defect_ids.insert(signal_id);
             }
         }
 
@@ -378,4 +388,3 @@ ScanReport GitRepositoryScanner::scan(const ScanConfig& config) const {
 }
 
 }  // namespace di
-

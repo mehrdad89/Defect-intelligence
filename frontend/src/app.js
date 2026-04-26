@@ -27,6 +27,11 @@ function truncateHash(hash) {
   return hash.slice(0, 8);
 }
 
+function isSampleReport(report) {
+  const repository = report?.metadata?.repository;
+  return typeof repository === "string" && repository.startsWith("sample");
+}
+
 function StatCard({ label, value, note }) {
   return html`
     <article className="stat-card">
@@ -214,6 +219,7 @@ export function App() {
   const [loading, setLoading] = useState(false);
   const [loadSource, setLoadSource] = useState("sample data");
   const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
   const [componentSearch, setComponentSearch] = useState("");
   const [selectedComponent, setSelectedComponent] = useState(null);
 
@@ -226,13 +232,15 @@ export function App() {
   async function refreshReport(initialLoad = false) {
     setLoading(true);
     setError(null);
+    setNotice(null);
 
     try {
-      const nextReport = await loadReportWithFallback({
+      const { report: nextReport, warning } = await loadReportWithFallback({
         repoPath: repoPath.trim() || undefined,
         historyMode,
         maxCommits: Number(maxCommits) || undefined,
         sample: sampleMode || (!repoPath.trim() && initialLoad),
+        allowDemoFallback: sampleMode || initialLoad,
       });
 
       startTransition(() => {
@@ -240,12 +248,10 @@ export function App() {
         setSelectedComponent(null);
       });
 
-      if (nextReport.metadata.repository === "sample-data") {
-        setLoadSource("sample data");
-      } else {
-        setLoadSource("live API");
-      }
+      setLoadSource(isSampleReport(nextReport) ? "sample data" : "live API");
+      setNotice(warning);
     } catch (loadError) {
+      setLoadSource("request failed");
       setError(loadError instanceof Error ? loadError.message : "Unknown loading error");
     } finally {
       setLoading(false);
@@ -334,6 +340,7 @@ export function App() {
           <button disabled=${loading} type="submit">
             ${loading ? "Scanning..." : "Refresh report"}
           </button>
+          ${notice ? html`<p className="notice-text">${notice}</p>` : null}
           ${error ? html`<p className="error-text">${error}</p>` : null}
         </form>
       </header>
@@ -403,4 +410,3 @@ export function App() {
     </div>
   `;
 }
-

@@ -1,12 +1,16 @@
 #include "defect_intelligence/http_server.h"
 
+#include <algorithm>
 #include <arpa/inet.h>
+#include <cctype>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
 #include <cerrno>
 #include <cstring>
+#include <iomanip>
+#include <mutex>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -15,6 +19,7 @@
 #include <thread>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace di {
 namespace {
@@ -28,6 +33,10 @@ struct HttpRequest {
 struct HttpResponse {
     int status {200};
     std::string body;
+};
+
+struct BadRequestError : std::runtime_error {
+    using std::runtime_error::runtime_error;
 };
 
 std::string trim(std::string value) {
@@ -56,6 +65,48 @@ std::string url_decode(std::string_view value) {
         decoded.push_back(c);
     }
     return decoded;
+}
+
+std::string json_escape(std::string_view value) {
+    std::ostringstream stream;
+    for (unsigned char c : value) {
+        switch (c) {
+            case '"':
+                stream << "\\\"";
+                break;
+            case '\\':
+                stream << "\\\\";
+                break;
+            case '\b':
+                stream << "\\b";
+                break;
+            case '\f':
+                stream << "\\f";
+                break;
+            case '\n':
+                stream << "\\n";
+                break;
+            case '\r':
+                stream << "\\r";
+                break;
+            case '\t':
+                stream << "\\t";
+                break;
+            default:
+                if (c < 0x20) {
+                    stream << "\\u" << std::hex << std::setw(4) << std::setfill('0')
+                           << static_cast<int>(c) << std::dec;
+                } else {
+                    stream << static_cast<char>(c);
+                }
+                break;
+        }
+    }
+    return stream.str();
+}
+
+std::string json_quote(std::string_view value) {
+    return "\"" + json_escape(value) + "\"";
 }
 
 std::unordered_map<std::string, std::string> parse_query_string(std::string_view query_string) {
@@ -164,13 +215,61 @@ HttpResponse json_response(int status, std::string body) {
     return HttpResponse {status, std::move(body)};
 }
 
+std::size_t parse_size_t_query(std::string_view value, std::string_view field_name) {
+    try {
+        std::size_t consumed = 0;
+        const std::size_t parsed = std::stoull(std::string(value), &consumed);
+        if (consumed != value.size()) {
+            throw BadRequestError("");
+        }
+        return parsed;
+    } catch (...) {
+        throw BadRequestError(std::string(field_name) + " must be a non-negative integer.");
+    }
+}
+
+HistoryMode parse_history_mode_query(std::string_view value) {
+    if (value == "full") {
+        return HistoryMode::kFull;
+    }
+    if (value == "first-parent") {
+        return HistoryMode::kFirstParent;
+    }
+    throw BadRequestError("historyMode must be either full or first-parent.");
+}
+
+void send_response_body(int client_fd, std::string_view wire) {
+    std::size_t total_sent = 0;
+    while (total_sent < wire.size()) {
+        int flags = 0;
+#ifdef MSG_NOSIGNAL
+        flags |= MSG_NOSIGNAL;
+#endif
+        const ssize_t sent = ::send(
+            client_fd,
+            wire.data() + total_sent,
+            wire.size() - total_sent,
+            flags);
+        if (sent < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            break;
+        }
+        if (sent == 0) {
+            break;
+        }
+        total_sent += static_cast<std::size_t>(sent);
+    }
+}
+
 std::string config_to_json(const ApiServerConfig& config) {
     std::ostringstream stream;
     stream << "{"
            << "\"port\":" << config.port << ","
            << "\"defaultRepoPath\":";
     if (config.default_repo_path.has_value()) {
-        stream << "\"" << config.default_repo_path.value() << "\"";
+        stream << json_quote(config.default_repo_path.value());
     } else {
         stream << "null";
     }
@@ -261,12 +360,12 @@ void ApiServer::serve() {
                             scan_config.revision = *revision;
                         }
                         if (const auto history_mode = query_value(request.query, "historyMode"); history_mode.has_value()) {
-                            scan_config.history_mode = history_mode_from_string(*history_mode);
+                            scan_config.history_mode = parse_history_mode_query(*history_mode);
                         }
                         scan_config.since = query_value(request.query, "since");
                         scan_config.until = query_value(request.query, "until");
                         if (const auto max_commits = query_value(request.query, "maxCommits"); max_commits.has_value()) {
-                            scan_config.max_commits = static_cast<std::size_t>(std::stoul(*max_commits));
+                            scan_config.max_commits = parse_size_t_query(*max_commits, "maxCommits");
                         }
 
                         const std::string cache_key = scan_config_cache_key(scan_config);
@@ -302,12 +401,14 @@ void ApiServer::serve() {
                         }
                     }
                 }
+            } catch (const BadRequestError& error) {
+                response = json_response(400, error_to_json(error.what(), 400));
             } catch (const std::exception& error) {
                 response = json_response(500, error_to_json(error.what(), 500));
             }
 
             const std::string wire = response_to_http(response);
-            ::write(client_fd, wire.data(), wire.size());
+            send_response_body(client_fd, wire);
             ::close(client_fd);
         }).detach();
     }

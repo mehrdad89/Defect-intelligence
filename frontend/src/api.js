@@ -19,6 +19,12 @@ function readApiBaseUrl() {
 
 export const API_BASE_URL = readApiBaseUrl();
 
+function buildHttpError(message, status) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
 function buildParams(request) {
   const params = new URLSearchParams();
   if (request.repoPath) {
@@ -52,8 +58,19 @@ export async function fetchReport(request) {
   );
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `Failed to load report: ${response.status}`);
+    const body = await response.text();
+    let message = body || `Failed to load report: ${response.status}`;
+
+    try {
+      const parsed = JSON.parse(body);
+      if (parsed?.error?.message) {
+        message = parsed.error.message;
+      }
+    } catch {
+      // Keep the raw response body when the error payload is not JSON.
+    }
+
+    throw buildHttpError(message, response.status);
   }
 
   return response.json();
@@ -61,9 +78,22 @@ export async function fetchReport(request) {
 
 export async function loadReportWithFallback(request) {
   try {
-    return await fetchReport(request);
-  } catch {
-    return demoReport;
+    return {
+      report: await fetchReport(request),
+      warning: null,
+    };
+  } catch (error) {
+    const canUseBundledDemo = Boolean(request.sample || request.allowDemoFallback);
+    const isNetworkLikeFailure =
+      !(error instanceof Error) || typeof error.status !== "number";
+
+    if (canUseBundledDemo && isNetworkLikeFailure) {
+      return {
+        report: demoReport,
+        warning: "Backend unavailable. Showing bundled sample data instead.",
+      };
+    }
+
+    throw error;
   }
 }
-

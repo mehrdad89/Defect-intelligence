@@ -7,7 +7,7 @@ namespace di {
 ScanReport build_sample_report() {
     ScanReport report;
     report.generated_at = internal::iso_now_utc();
-    report.repository = "sample://demo-repository";
+    report.repository = "sample-data";
     report.revision = "demo-main";
     report.history_mode = "full";
     report.summary = ScanSummary {

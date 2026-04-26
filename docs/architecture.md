@@ -53,7 +53,7 @@ The HTTP service exposes the aggregate report through JSON endpoints that the Re
 ### Key metric ideas
 
 - `relevant_commits`: commits carrying a defect marker or issue reference
-- `unique_defects`: normalized unique customer-linked identifiers
+- `unique_defects`: normalized unique linked identifiers, including issue-style references when they are used as the only signal
 - `hotspot_score`: simple ranking signal combining defect breadth, commit count, and churn
 - `coverage_ratio`: ratio of relevant commits to scanned commits
 
@@ -76,7 +76,7 @@ The dashboard is intentionally small and review-friendly:
 - recent commit feed
 - insight panel
 
-The UI is delivered as static browser modules and loads React from a CDN. It defaults to demo data when the backend is not reachable so the repo remains easy to review on GitHub.
+The UI is delivered as static browser modules and loads React from a CDN. It also supports a bundled demo fallback for sample-mode review when the backend is not reachable, which keeps the repo easy to inspect on GitHub without masking live API errors.
 
 ## Extension Points
 

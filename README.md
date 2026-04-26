@@ -77,11 +77,11 @@ python3 -m http.server 4173
 
 Open `http://localhost:4173`.
 
-Set the API base URL by editing the `<meta name="defect-intelligence-api-base-url">` tag in [frontend/index.html](/Users/mehrdad.mehraban/repo/Defect-intelligence/frontend/index.html:1), or set `window.DEFECT_INTELLIGENCE_API_BASE_URL` before `main.js` loads.
+Set the API base URL by editing the `<meta name="defect-intelligence-api-base-url">` tag in [frontend/index.html](frontend/index.html), or set `window.DEFECT_INTELLIGENCE_API_BASE_URL` before `main.js` loads.
 
-If the API is unavailable, the UI falls back to sample data so the experience is still reviewable.
+If the API is unavailable while you are using sample mode, the UI can fall back to bundled sample data so the experience is still reviewable.
 
-For the exact two-terminal startup flow, see [RUNBOOK.md](/Users/mehrdad.mehraban/repo/Defect-intelligence/RUNBOOK.md:1).
+For the exact two-terminal startup flow, see [RUNBOOK.md](RUNBOOK.md).
 
 ## Repository Notes
 
@@ -90,7 +90,7 @@ For the exact two-terminal startup flow, see [RUNBOOK.md](/Users/mehrdad.mehraba
 - repository-specific paths and secrets belong in local environment files only
 - model-backed summary integration can remain disabled by default
 
-See [docs/publishability.md](/Users/mehrdad.mehraban/repo/Defect-intelligence/docs/publishability.md) for the checklist.
+See [docs/publishability.md](docs/publishability.md) for the checklist.
 
 ## Next Product Steps
 
