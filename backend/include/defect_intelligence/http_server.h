@@ -3,7 +3,6 @@
 #include <mutex>
 #include <optional>
 #include <string>
-#include <unordered_map>
 
 #include "defect_intelligence/core.h"
 
@@ -21,11 +20,14 @@ class ApiServer {
     void serve();
 
   private:
+    [[nodiscard]] ScanReport get_report(const ScanConfig& scan_config);
+    void handle_client(int client_fd);
+
     ApiServerConfig config_;
     AnalyticsService analytics_;
     mutable std::mutex cache_mutex_;
-    mutable std::unordered_map<std::string, ScanReport> cache_;
+    std::string last_cache_key_;
+    std::optional<ScanReport> last_report_;
 };
 
 }  // namespace di
-

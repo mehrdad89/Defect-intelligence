@@ -240,6 +240,12 @@ code {
   line-height: 1.5;
 }
 
+.empty-state {
+  min-height: 5rem;
+  display: flex;
+  align-items: center;
+}
+
 .panel {
   padding: 1.25rem;
   border-radius: 1.6rem;

@@ -40,6 +40,8 @@ The UI will usually be available at:
 http://localhost:4173
 ```
 
+The page opens in a neutral state. Click `Refresh report` to load sample data from a backend running in `--sample` mode, or turn on the demo-data checkbox if you want the bundled local demo payload.
+
 ## Option 2: Real Repository Scan
 
 Use this when you want the backend to scan a real local Git checkout.
@@ -64,6 +66,8 @@ Example:
 cd frontend
 python3 -m http.server 4173
 ```
+
+Enter the repository path in the UI and click `Refresh report` to load live backend data. Turn on the "Use synthetic demo data" checkbox only when you explicitly want sample-mode behavior.
 
 ## One-Shot CLI Scans
 

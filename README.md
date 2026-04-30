@@ -77,6 +77,8 @@ python3 -m http.server 4173
 
 Open `http://localhost:4173`.
 
+The page opens in a neutral state. Click `Refresh report` to load live data, or enable sample mode first when you want the bundled demo flow.
+
 Set the API base URL by editing the `<meta name="defect-intelligence-api-base-url">` tag in [frontend/index.html](frontend/index.html), or set `window.DEFECT_INTELLIGENCE_API_BASE_URL` before `main.js` loads.
 
 If the API is unavailable while you are using sample mode, the UI can fall back to bundled sample data so the experience is still reviewable.

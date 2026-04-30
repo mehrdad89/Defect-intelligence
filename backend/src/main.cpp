@@ -1,8 +1,11 @@
 #include "defect_intelligence/core.h"
 #include "defect_intelligence/http_server.h"
 
+#include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -39,6 +42,49 @@ bool has_flag(const std::vector<std::string>& args, const std::string& flag) {
     return false;
 }
 
+bool looks_unsigned_integer(std::string_view value) {
+    return !value.empty() && std::all_of(value.begin(), value.end(), [](unsigned char c) {
+        return std::isdigit(c) != 0;
+    });
+}
+
+std::size_t parse_max_commits(std::string_view value) {
+    if (!looks_unsigned_integer(value)) {
+        throw std::runtime_error("--max-commits must be a non-negative integer.");
+    }
+
+    std::size_t consumed = 0;
+    const unsigned long long parsed = std::stoull(std::string(value), &consumed);
+    if (consumed != value.size() ||
+        parsed > static_cast<unsigned long long>(std::numeric_limits<std::size_t>::max())) {
+        throw std::runtime_error("--max-commits must be a non-negative integer.");
+    }
+    return static_cast<std::size_t>(parsed);
+}
+
+int parse_port(std::string_view value, std::string_view source_name) {
+    if (!looks_unsigned_integer(value)) {
+        throw std::runtime_error(std::string(source_name) + " must be an integer between 1 and 65535.");
+    }
+
+    std::size_t consumed = 0;
+    const unsigned long parsed = std::stoul(std::string(value), &consumed);
+    if (consumed != value.size() || parsed == 0 || parsed > 65535UL) {
+        throw std::runtime_error(std::string(source_name) + " must be an integer between 1 and 65535.");
+    }
+    return static_cast<int>(parsed);
+}
+
+di::HistoryMode parse_history_mode(std::string_view value) {
+    if (value == "full") {
+        return di::HistoryMode::kFull;
+    }
+    if (value == "first-parent") {
+        return di::HistoryMode::kFirstParent;
+    }
+    throw std::runtime_error("--history-mode must be either full or first-parent.");
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -61,12 +107,12 @@ int main(int argc, char** argv) {
                 config.revision = *revision;
             }
             if (const auto history_mode = read_flag(args, "--history-mode"); history_mode.has_value()) {
-                config.history_mode = di::history_mode_from_string(*history_mode);
+                config.history_mode = parse_history_mode(*history_mode);
             }
             config.since = read_flag(args, "--since");
             config.until = read_flag(args, "--until");
             if (const auto max_commits = read_flag(args, "--max-commits"); max_commits.has_value()) {
-                config.max_commits = static_cast<std::size_t>(std::stoul(*max_commits));
+                config.max_commits = parse_max_commits(*max_commits);
             }
 
             const di::ScanReport report = di::AnalyticsService {}.analyze(config);
@@ -84,9 +130,9 @@ int main(int argc, char** argv) {
             }
 
             if (const auto port = read_flag(args, "--port"); port.has_value()) {
-                config.port = std::stoi(*port);
+                config.port = parse_port(*port, "--port");
             } else if (const char* env_port = std::getenv("DI_PORT"); env_port != nullptr) {
-                config.port = std::stoi(env_port);
+                config.port = parse_port(env_port, "DI_PORT");
             }
 
             di::ApiServer server(config);
@@ -107,4 +153,3 @@ int main(int argc, char** argv) {
         return 1;
     }
 }
-

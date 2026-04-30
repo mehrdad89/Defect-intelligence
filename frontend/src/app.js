@@ -2,11 +2,9 @@ import {
   html,
   startTransition,
   useDeferredValue,
-  useEffect,
   useState,
 } from "./react-cdn.js";
-import { API_BASE_URL, loadReportWithFallback } from "./api.js";
-import { demoReport } from "./demo-data.js";
+import { API_BASE_URL, loadReport } from "./api.js";
 
 function formatPercent(value) {
   return `${(value * 100).toFixed(1)}%`;
@@ -32,6 +30,48 @@ function isSampleReport(report) {
   return typeof repository === "string" && repository.startsWith("sample");
 }
 
+function createPlaceholderReport(historyMode) {
+  return {
+    metadata: {
+      historyMode,
+      revision: "-",
+    },
+    summary: {
+      totalCommitsScanned: 0,
+      relevantCommits: 0,
+      uniqueDefects: 0,
+      components: 0,
+      authors: 0,
+      periodStart: "",
+      periodEnd: "",
+      coverageRatio: 0,
+    },
+    componentInsights: [],
+    authorInsights: [],
+    timeline: [],
+    commits: [],
+    insightSummary: {
+      available: false,
+      source: "idle",
+      narrative:
+        "Click Refresh report to load live scan results, or enable sample mode when you want a synthetic preview.",
+      highlights: [
+        "The dashboard starts in a neutral state instead of guessing which data source you wanted.",
+      ],
+      nextActions: [
+        "Leave the repository path blank to use the server's default repository, or enter a local checkout path before refreshing.",
+      ],
+    },
+  };
+}
+
+function formatWindow(summary) {
+  if (!summary.periodStart || !summary.periodEnd) {
+    return "Not loaded";
+  }
+  return `${formatDate(summary.periodStart)} - ${formatDate(summary.periodEnd)}`;
+}
+
 function StatCard({ label, value, note }) {
   return html`
     <article className="stat-card">
@@ -51,6 +91,22 @@ function Pill({ children, tone }) {
 }
 
 function TrendBars({ report }) {
+  if (report.timeline.length === 0) {
+    return html`
+      <section className="panel">
+        <div className="panel-head">
+          <div>
+            <p className="eyebrow">Signal Rhythm</p>
+            <h2>Recent defect-linked activity</h2>
+          </div>
+        </div>
+        <p className="support-text empty-state">
+          Trend data appears after the first successful scan.
+        </p>
+      </section>
+    `;
+  }
+
   const maxValue = Math.max(...report.timeline.map((bucket) => bucket.defectRefs), 1);
 
   return html`
@@ -82,6 +138,22 @@ function TrendBars({ report }) {
 }
 
 function HotspotTable({ components, selectedComponent, onSelect }) {
+  if (components.length === 0) {
+    return html`
+      <section className="panel">
+        <div className="panel-head">
+          <div>
+            <p className="eyebrow">Hotspots</p>
+            <h2>Component ranking</h2>
+          </div>
+        </div>
+        <p className="support-text empty-state">
+          No hotspot components to show for the current report.
+        </p>
+      </section>
+    `;
+  }
+
   return html`
     <section className="panel">
       <div className="panel-head">
@@ -135,6 +207,26 @@ function HotspotTable({ components, selectedComponent, onSelect }) {
 }
 
 function CommitFeed({ commits, selectedComponent }) {
+  if (commits.length === 0) {
+    return html`
+      <section className="panel">
+        <div className="panel-head">
+          <div>
+            <p className="eyebrow">Recent Work</p>
+            <h2>
+              ${selectedComponent
+                ? `Recent commits in ${selectedComponent}`
+                : "Recent defect-linked commits"}
+            </h2>
+          </div>
+        </div>
+        <p className="support-text empty-state">
+          No matching commits were returned for the current filter set.
+        </p>
+      </section>
+    `;
+  }
+
   return html`
     <section className="panel">
       <div className="panel-head">
@@ -211,36 +303,33 @@ function InsightPanel({ report }) {
 }
 
 export function App() {
-  const [report, setReport] = useState(demoReport);
+  const [report, setReport] = useState(null);
   const [repoPath, setRepoPath] = useState("");
-  const [sampleMode, setSampleMode] = useState(true);
+  const [sampleMode, setSampleMode] = useState(false);
   const [historyMode, setHistoryMode] = useState("full");
   const [maxCommits, setMaxCommits] = useState("500");
   const [loading, setLoading] = useState(false);
-  const [loadSource, setLoadSource] = useState("sample data");
+  const [loadSource, setLoadSource] = useState("not loaded");
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [componentSearch, setComponentSearch] = useState("");
   const [selectedComponent, setSelectedComponent] = useState(null);
 
   const deferredSearch = useDeferredValue(componentSearch);
+  const activeReport = report ?? createPlaceholderReport(historyMode);
+  const hasReport = report !== null;
 
-  useEffect(() => {
-    void refreshReport(true);
-  }, []);
-
-  async function refreshReport(initialLoad = false) {
+  async function refreshReport() {
     setLoading(true);
     setError(null);
     setNotice(null);
 
     try {
-      const { report: nextReport, warning } = await loadReportWithFallback({
+      const { report: nextReport, warning } = await loadReport({
         repoPath: repoPath.trim() || undefined,
         historyMode,
         maxCommits: Number(maxCommits) || undefined,
-        sample: sampleMode || (!repoPath.trim() && initialLoad),
-        allowDemoFallback: sampleMode || initialLoad,
+        sample: sampleMode,
       });
 
       startTransition(() => {
@@ -263,7 +352,7 @@ export function App() {
     void refreshReport();
   }
 
-  const visibleComponents = report.componentInsights.filter((component) => {
+  const visibleComponents = activeReport.componentInsights.filter((component) => {
     if (!deferredSearch.trim()) {
       return true;
     }
@@ -274,11 +363,18 @@ export function App() {
     );
   });
 
-  const visibleCommits = report.commits
+  const visibleCommits = activeReport.commits
     .filter((commit) =>
       selectedComponent ? commit.components.includes(selectedComponent) : true,
     )
     .slice(0, 6);
+
+  const idleNotice =
+    report === null && !loading && !error
+      ? sampleMode
+        ? "Click Refresh report to load sample data."
+        : "Click Refresh report to load live data."
+      : null;
 
   return html`
     <div className="shell">
@@ -297,7 +393,7 @@ export function App() {
           <div className="hero-meta">
             <${Pill} tone="cool">API ${API_BASE_URL}</${Pill}>
             <${Pill}>${loadSource}</${Pill}>
-            <${Pill} tone="cool">${report.metadata.historyMode}</${Pill}>
+            <${Pill} tone="cool">${activeReport.metadata.historyMode}</${Pill}>
           </div>
         </div>
 
@@ -340,6 +436,7 @@ export function App() {
           <button disabled=${loading} type="submit">
             ${loading ? "Scanning..." : "Refresh report"}
           </button>
+          ${idleNotice ? html`<p className="notice-text">${idleNotice}</p>` : null}
           ${notice ? html`<p className="notice-text">${notice}</p>` : null}
           ${error ? html`<p className="error-text">${error}</p>` : null}
         </form>
@@ -348,23 +445,29 @@ export function App() {
       <section className="stats-grid">
         <${StatCard}
           label="Relevant Commits"
-          value=${String(report.summary.relevantCommits)}
-          note=${`${report.summary.totalCommitsScanned} scanned`}
+          value=${String(activeReport.summary.relevantCommits)}
+          note=${hasReport
+            ? `${activeReport.summary.totalCommitsScanned} scanned`
+            : "Awaiting first scan"}
         />
         <${StatCard}
           label="Unique Defects"
-          value=${String(report.summary.uniqueDefects)}
-          note=${`${report.summary.components} components touched`}
+          value=${String(activeReport.summary.uniqueDefects)}
+          note=${hasReport
+            ? `${activeReport.summary.components} components touched`
+            : "No report loaded yet"}
         />
         <${StatCard}
           label="Coverage"
-          value=${formatPercent(report.summary.coverageRatio)}
-          note=${`${report.summary.authors} active authors`}
+          value=${formatPercent(activeReport.summary.coverageRatio)}
+          note=${hasReport
+            ? `${activeReport.summary.authors} active authors`
+            : "Run a scan to populate"}
         />
         <${StatCard}
           label="Window"
-          value=${`${formatDate(report.summary.periodStart)} - ${formatDate(report.summary.periodEnd)}`}
-          note=${report.metadata.revision}
+          value=${formatWindow(activeReport.summary)}
+          note=${activeReport.metadata.revision}
         />
       </section>
 
@@ -403,8 +506,8 @@ export function App() {
         </div>
 
         <div className="side-column">
-          <${TrendBars} report=${report} />
-          <${InsightPanel} report=${report} />
+          <${TrendBars} report=${activeReport} />
+          <${InsightPanel} report=${activeReport} />
         </div>
       </div>
     </div>

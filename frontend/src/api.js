@@ -76,14 +76,14 @@ export async function fetchReport(request) {
   return response.json();
 }
 
-export async function loadReportWithFallback(request) {
+export async function loadReport(request) {
   try {
     return {
       report: await fetchReport(request),
       warning: null,
     };
   } catch (error) {
-    const canUseBundledDemo = Boolean(request.sample || request.allowDemoFallback);
+    const canUseBundledDemo = Boolean(request.sample);
     const isNetworkLikeFailure =
       !(error instanceof Error) || typeof error.status !== "number";
 

@@ -10,7 +10,7 @@
 #include <cerrno>
 #include <cstring>
 #include <iomanip>
-#include <mutex>
+#include <limits>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -19,7 +19,6 @@
 #include <thread>
 #include <unordered_map>
 #include <utility>
-#include <vector>
 
 namespace di {
 namespace {
@@ -177,6 +176,8 @@ std::string status_text(int status) {
             return "Not Found";
         case 405:
             return "Method Not Allowed";
+        case 503:
+            return "Service Unavailable";
         default:
             return "Internal Server Error";
     }
@@ -215,14 +216,24 @@ HttpResponse json_response(int status, std::string body) {
     return HttpResponse {status, std::move(body)};
 }
 
+bool looks_unsigned_integer(std::string_view value) {
+    return !value.empty() && std::all_of(value.begin(), value.end(), [](unsigned char c) {
+        return std::isdigit(c) != 0;
+    });
+}
+
 std::size_t parse_size_t_query(std::string_view value, std::string_view field_name) {
+    if (!looks_unsigned_integer(value)) {
+        throw BadRequestError(std::string(field_name) + " must be a non-negative integer.");
+    }
     try {
         std::size_t consumed = 0;
-        const std::size_t parsed = std::stoull(std::string(value), &consumed);
-        if (consumed != value.size()) {
+        const unsigned long long parsed = std::stoull(std::string(value), &consumed);
+        if (consumed != value.size() ||
+            parsed > static_cast<unsigned long long>(std::numeric_limits<std::size_t>::max())) {
             throw BadRequestError("");
         }
-        return parsed;
+        return static_cast<std::size_t>(parsed);
     } catch (...) {
         throw BadRequestError(std::string(field_name) + " must be a non-negative integer.");
     }
@@ -319,99 +330,107 @@ void ApiServer::serve() {
 #endif
 
         std::thread([this, client_fd]() {
-            std::string raw_request;
-            char buffer[4096];
-            while (raw_request.find("\r\n\r\n") == std::string::npos) {
-                const ssize_t bytes_read = ::read(client_fd, buffer, sizeof(buffer));
-                if (bytes_read <= 0) {
-                    break;
-                }
-                raw_request.append(buffer, static_cast<std::size_t>(bytes_read));
-                if (raw_request.size() > 64 * 1024) {
-                    break;
-                }
-            }
-
-            HttpResponse response;
-            try {
-                const HttpRequest request = parse_request(raw_request);
-                if (request.method == "OPTIONS") {
-                    response = json_response(204, "");
-                } else if (request.method != "GET") {
-                    response = json_response(405, error_to_json("Only GET and OPTIONS are supported.", 405));
-                } else if (request.path == "/" || request.path == "/api" || request.path == "/api/v1") {
-                    response = json_response(200, "{\"service\":\"defect-intelligence-api\",\"message\":\"Use /api/v1/report or related endpoints.\"}");
-                } else if (request.path == "/api/v1/health") {
-                    response = json_response(200, health_to_json());
-                } else if (request.path == "/api/v1/config") {
-                    response = json_response(200, config_to_json(config_));
-                } else {
-                    ScanConfig scan_config;
-                    scan_config.sample_mode = config_.sample_mode || query_truthy(request.query, "sample");
-                    if (const auto repo = query_value(request.query, "repoPath"); repo.has_value()) {
-                        scan_config.repo_path = *repo;
-                    } else if (config_.default_repo_path.has_value()) {
-                        scan_config.repo_path = *config_.default_repo_path;
-                    }
-                    if (scan_config.repo_path.empty() && !scan_config.sample_mode) {
-                        response = json_response(400, error_to_json("repoPath is required unless sample=true or a default repo is configured.", 400));
-                    } else {
-                        if (const auto revision = query_value(request.query, "rev"); revision.has_value()) {
-                            scan_config.revision = *revision;
-                        }
-                        if (const auto history_mode = query_value(request.query, "historyMode"); history_mode.has_value()) {
-                            scan_config.history_mode = parse_history_mode_query(*history_mode);
-                        }
-                        scan_config.since = query_value(request.query, "since");
-                        scan_config.until = query_value(request.query, "until");
-                        if (const auto max_commits = query_value(request.query, "maxCommits"); max_commits.has_value()) {
-                            scan_config.max_commits = parse_size_t_query(*max_commits, "maxCommits");
-                        }
-
-                        const std::string cache_key = scan_config_cache_key(scan_config);
-                        ScanReport report;
-                        {
-                            std::lock_guard<std::mutex> lock(cache_mutex_);
-                            const auto cached = cache_.find(cache_key);
-                            if (cached != cache_.end()) {
-                                report = cached->second;
-                            }
-                        }
-                        if (report.generated_at.empty()) {
-                            report = analytics_.analyze(scan_config);
-                            std::lock_guard<std::mutex> lock(cache_mutex_);
-                            cache_[cache_key] = report;
-                        }
-
-                        if (request.path == "/api/v1/report") {
-                            response = json_response(200, to_json(report));
-                        } else if (request.path == "/api/v1/summary") {
-                            response = json_response(200, summary_to_json(report));
-                        } else if (request.path == "/api/v1/components") {
-                            response = json_response(200, components_to_json(report));
-                        } else if (request.path == "/api/v1/authors") {
-                            response = json_response(200, authors_to_json(report));
-                        } else if (request.path == "/api/v1/commits") {
-                            response = json_response(200, commits_to_json(report, query_value(request.query, "component")));
-                        } else if (request.path == "/api/v1/insights") {
-                            const InsightSummary summary = InsightComposer {}.compose(report, query_value(request.query, "component"));
-                            response = json_response(200, insight_summary_to_json(summary));
-                        } else {
-                            response = json_response(404, error_to_json("Unknown endpoint.", 404));
-                        }
-                    }
-                }
-            } catch (const BadRequestError& error) {
-                response = json_response(400, error_to_json(error.what(), 400));
-            } catch (const std::exception& error) {
-                response = json_response(500, error_to_json(error.what(), 500));
-            }
-
-            const std::string wire = response_to_http(response);
-            send_response_body(client_fd, wire);
-            ::close(client_fd);
+            handle_client(client_fd);
         }).detach();
     }
+}
+
+ScanReport ApiServer::get_report(const ScanConfig& scan_config) {
+    const std::string cache_key = scan_config_cache_key(scan_config);
+    {
+        std::lock_guard<std::mutex> lock(cache_mutex_);
+        if (last_report_.has_value() && last_cache_key_ == cache_key) {
+            return *last_report_;
+        }
+    }
+
+    ScanReport report = analytics_.analyze(scan_config);
+    {
+        std::lock_guard<std::mutex> lock(cache_mutex_);
+        last_cache_key_ = cache_key;
+        last_report_ = report;
+    }
+    return report;
+}
+
+void ApiServer::handle_client(int client_fd) {
+    std::string raw_request;
+    char buffer[4096];
+    while (raw_request.find("\r\n\r\n") == std::string::npos) {
+        const ssize_t bytes_read = ::read(client_fd, buffer, sizeof(buffer));
+        if (bytes_read <= 0) {
+            break;
+        }
+        raw_request.append(buffer, static_cast<std::size_t>(bytes_read));
+        if (raw_request.size() > 64 * 1024) {
+            break;
+        }
+    }
+
+    HttpResponse response;
+    try {
+        const HttpRequest request = parse_request(raw_request);
+        if (request.method == "OPTIONS") {
+            response = json_response(204, "");
+        } else if (request.method != "GET") {
+            response = json_response(405, error_to_json("Only GET and OPTIONS are supported.", 405));
+        } else if (request.path == "/" || request.path == "/api" || request.path == "/api/v1") {
+            response = json_response(200, "{\"service\":\"defect-intelligence-api\",\"message\":\"Use /api/v1/report or related endpoints.\"}");
+        } else if (request.path == "/api/v1/health") {
+            response = json_response(200, health_to_json());
+        } else if (request.path == "/api/v1/config") {
+            response = json_response(200, config_to_json(config_));
+        } else {
+            ScanConfig scan_config;
+            scan_config.sample_mode = config_.sample_mode || query_truthy(request.query, "sample");
+            if (const auto repo = query_value(request.query, "repoPath"); repo.has_value()) {
+                scan_config.repo_path = *repo;
+            } else if (config_.default_repo_path.has_value()) {
+                scan_config.repo_path = *config_.default_repo_path;
+            }
+            if (scan_config.repo_path.empty() && !scan_config.sample_mode) {
+                response = json_response(400, error_to_json("repoPath is required unless sample=true or a default repo is configured.", 400));
+            } else {
+                if (const auto revision = query_value(request.query, "rev"); revision.has_value()) {
+                    scan_config.revision = *revision;
+                }
+                if (const auto history_mode = query_value(request.query, "historyMode"); history_mode.has_value()) {
+                    scan_config.history_mode = parse_history_mode_query(*history_mode);
+                }
+                scan_config.since = query_value(request.query, "since");
+                scan_config.until = query_value(request.query, "until");
+                if (const auto max_commits = query_value(request.query, "maxCommits"); max_commits.has_value()) {
+                    scan_config.max_commits = parse_size_t_query(*max_commits, "maxCommits");
+                }
+
+                const ScanReport report = get_report(scan_config);
+                if (request.path == "/api/v1/report") {
+                    response = json_response(200, to_json(report));
+                } else if (request.path == "/api/v1/summary") {
+                    response = json_response(200, summary_to_json(report));
+                } else if (request.path == "/api/v1/components") {
+                    response = json_response(200, components_to_json(report));
+                } else if (request.path == "/api/v1/authors") {
+                    response = json_response(200, authors_to_json(report));
+                } else if (request.path == "/api/v1/commits") {
+                    response = json_response(200, commits_to_json(report, query_value(request.query, "component")));
+                } else if (request.path == "/api/v1/insights") {
+                    const InsightSummary summary = InsightComposer {}.compose(report, query_value(request.query, "component"));
+                    response = json_response(200, insight_summary_to_json(summary));
+                } else {
+                    response = json_response(404, error_to_json("Unknown endpoint.", 404));
+                }
+            }
+        }
+    } catch (const BadRequestError& error) {
+        response = json_response(400, error_to_json(error.what(), 400));
+    } catch (const std::exception& error) {
+        response = json_response(500, error_to_json(error.what(), 500));
+    }
+
+    const std::string wire = response_to_http(response);
+    send_response_body(client_fd, wire);
+    ::close(client_fd);
 }
 
 }  // namespace di

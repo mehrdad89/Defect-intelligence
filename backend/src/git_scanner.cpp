@@ -144,10 +144,10 @@ CommitSummary build_commit_summary(const std::string& repo_path, const BasicComm
         }
     }
 
+    // Keep merge accounting predictable by comparing merge commits to their first parent.
     const std::string file_output = commit.parents.size() >= 2
         ? run_git(repo_path, {"diff", "--numstat", commit.parents.front(), basic_commit.hash})
         : run_git(repo_path, {"show", "--numstat", "--format=", basic_commit.hash});
-
     std::unordered_set<std::string> unique_components;
     std::istringstream file_stream(file_output);
     std::string line;
@@ -167,8 +167,8 @@ CommitSummary build_commit_summary(const std::string& repo_path, const BasicComm
         change.component = infer_component(change.path);
         change.file_kind = classify_file_kind(change.path);
         commit.total_churn += change.churn();
-        commit.files.push_back(change);
         unique_components.insert(change.component);
+        commit.files.push_back(change);
     }
 
     commit.components.assign(unique_components.begin(), unique_components.end());
